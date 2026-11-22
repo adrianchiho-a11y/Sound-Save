@@ -47,14 +47,15 @@ const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const cloudDb = getFirestore(firebaseApp);
 const cloudStorage = getStorage(firebaseApp);
-let signedInUser = null, cloudBusy = false;
+let signedInUser = null, cloudBusy = false, syncPending = false;
 const cloudUserPath = (uid, type) => collection(cloudDb, "users", uid, type);
 function setCloudStatus(message){ $("cloudStatus").textContent = message; }
 function scheduleCloudSync(){ if(signedInUser && navigator.onLine) syncCloud().catch(e=>{console.error(e);setCloudStatus("Sync error — "+(e.message||"try again"));}); }
 async function saveLocalTrack(t){const tx=db.transaction(STORE,"readwrite");tx.objectStore(STORE).put(t);await txDone(tx);}
 async function deleteLocalTrack(id){const tx=db.transaction(STORE,"readwrite");tx.objectStore(STORE).delete(id);await txDone(tx);}
 async function syncCloud(){
- if(!signedInUser || !navigator.onLine || cloudBusy || !db)return;
+ if(!signedInUser || !navigator.onLine || !db)return;
+ if(cloudBusy){syncPending=true;return;}
  cloudBusy=true;setCloudStatus("Syncing…");
  const uid=signedInUser.uid;
  try{
@@ -87,7 +88,7 @@ async function syncCloud(){
   }
   for(const [id,remote] of remoteTracks){if(deletedIds.has(id)||localTracks.some(x=>x.id===id))continue;const bytes=await getBytes(storageRef(cloudStorage,remote.storagePath||("users/"+uid+"/audio/"+id)));const track={id,name:remote.name,fileName:remote.fileName,mime:remote.mime||"audio/mpeg",size:remote.size||bytes.byteLength,blob:new Blob([bytes],{type:remote.mime||"audio/mpeg"}),addedAt:remote.addedAt||Date.now(),updatedAt:remote.updatedAt||Date.now(),folderId:remote.folderId||null};await saveLocalTrack(track);}
   tracks=await allTracks();folders=await allFolders();render();setCloudStatus("Synced · "+(signedInUser.displayName||signedInUser.email||"Google account"));
- }finally{cloudBusy=false;}
+ }finally{cloudBusy=false;if(syncPending){syncPending=false;setTimeout(()=>syncCloud().catch(e=>{console.error(e);setCloudStatus("Sync error — "+(e.message||"try again"));}),0);}}
 }
 onAuthStateChanged(auth,async user=>{signedInUser=user;$("googleLogin").classList.toggle("hidden",!!user);$("googleLogout").classList.toggle("hidden",!user);$("cloudSync").classList.toggle("hidden",!user);if(user){setCloudStatus("Signed in · syncing…");try{await syncCloud();}catch(e){console.error(e);setCloudStatus("Sync error — "+(e.message||"check Firebase setup"));}}else setCloudStatus("Local only");});
 $("googleLogin").addEventListener("click",async()=>{try{await signInWithPopup(auth,new GoogleAuthProvider());}catch(e){console.error(e);say("Google sign-in failed: "+(e.message||e.code));}});
