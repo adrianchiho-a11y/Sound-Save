@@ -34,6 +34,9 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChang
 import { getFirestore, collection, doc, getDocs, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-firestore.js";
 import { getStorage, ref as storageRef, uploadBytes, getBytes, deleteObject } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-storage.js";
 
+const DB_NAME='sound-save-library', DB_VERSION=2, STORE='tracks', FOLDERS='folders';
+const $=id=>document.getElementById(id);
+
 const firebaseConfig = {
   apiKey: "AIzaSyAONE9K5bDx7b2fPJyoRnDwih18MRxaj6w",
   authDomain: "sound-save-f97ec.firebaseapp.com",
@@ -96,8 +99,6 @@ $("googleLogout").addEventListener("click",()=>signOut(auth).catch(e=>say(e.mess
 $("cloudSync").addEventListener("click",()=>syncCloud().catch(e=>{console.error(e);say("Sync failed: "+(e.message||e.code));}));
 window.addEventListener("online",()=>scheduleCloudSync());
 
-const DB_NAME='sound-save-library', DB_VERSION=2, STORE='tracks', FOLDERS='folders';
-const $=id=>document.getElementById(id);
 let db, tracks=[], folders=[], currentUrl=null, currentId=null, toastTimer, currentFolderId=null, playlist=[], playlistIndex=-1, playlistFolderId=null, draggedTrackId=null;
 function openDB(){return new Promise((resolve,reject)=>{const req=indexedDB.open(DB_NAME,DB_VERSION);req.onupgradeneeded=()=>{const d=req.result;if(!d.objectStoreNames.contains(STORE)){const st=d.createObjectStore(STORE,{keyPath:'id'});st.createIndex('addedAt','addedAt');}if(!d.objectStoreNames.contains(FOLDERS))d.createObjectStore(FOLDERS,{keyPath:'id'});};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
 function txDone(tx){return new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});}
